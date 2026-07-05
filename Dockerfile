@@ -8,5 +8,3 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY flask_app.py .
 
 EXPOSE 8000
-
-CMD ["python", "flask_app.py"]
