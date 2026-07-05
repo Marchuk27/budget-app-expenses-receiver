@@ -6,14 +6,12 @@ import os
 
 app = Flask(__name__)
 
-# Данные из переменных окружения (безопаснее) или просто в коде
 RABBITMQ_USER = os.environ.get('RABBITMQ_USER', 'owrqpdlu')
 RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD', '10vJ9kVWgSsee7029maNq8xNSeQUN47F')
 RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'lizard.lmq.cloudamqp.com')
 RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', 'owrqpdlu')
 
 def send_to_rabbitmq(message):
-    """Отправка через HTTP API CloudAMQP"""
     try:
         url = f'https://{RABBITMQ_HOST}/api/queues/{RABBITMQ_VHOST}/expenses_queue/publish'
         
@@ -31,14 +29,9 @@ def send_to_rabbitmq(message):
             headers={'Content-Type': 'application/json'}
         )
         
-        if response.status_code == 200:
-            return True
-        else:
-            print(f"HTTP ошибка: {response.status_code} - {response.text}")
-            return False
-            
+        return response.status_code == 200
     except Exception as e:
-        print(f"Ошибка: {e}")
+        print(f"RabbitMQ ошибка: {e}")
         return False
 
 @app.route('/api/expenses', methods=['POST'])
@@ -62,7 +55,6 @@ def add_expense():
         if send_to_rabbitmq(message):
             return jsonify({'status': 'success', 'message': 'Sent via HTTP API'}), 200
         else:
-            # Резерв — сохраняем в файл (путь для Timeweb)
             with open('/app/expenses_backup.txt', 'a') as f:
                 f.write(payload + '\n')
             return jsonify({'status': 'success', 'message': 'Saved to file (backup)'}), 200
@@ -76,16 +68,11 @@ def health():
 
 @app.route('/expenses', methods=['GET'])
 def get_expenses():
-    """Просмотр сохранённых трат"""
     try:
         with open('/app/expenses_backup.txt', 'r') as f:
             return f.read(), 200, {'Content-Type': 'text/plain'}
     except:
         return 'No expenses yet', 404
 
-# Для gunicorn
-application = app
-
-# Не нужно
-#if __name__ == '__main__':
-#    app.run(host='0.0.0.0', port=8000)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8000)
