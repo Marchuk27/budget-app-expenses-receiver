@@ -2,14 +2,15 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 import requests
 import json
+import os
 
 app = Flask(__name__)
 
-# ТВОИ ДАННЫЕ
-RABBITMQ_USER = 'owrqpdlu'
-RABBITMQ_PASSWORD = '10vJ9kVWgSsee7029maNq8xNSeQUN47F'
-RABBITMQ_HOST = 'lizard.lmq.cloudamqp.com'
-RABBITMQ_VHOST = 'owrqpdlu'
+# Данные из переменных окружения (безопаснее) или просто в коде
+RABBITMQ_USER = os.environ.get('RABBITMQ_USER', 'owrqpdlu')
+RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD', '10vJ9kVWgSsee7029maNq8xNSeQUN47F')
+RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'lizard.lmq.cloudamqp.com')
+RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', 'owrqpdlu')
 
 def send_to_rabbitmq(message):
     """Отправка через HTTP API CloudAMQP"""
@@ -57,15 +58,12 @@ def add_expense():
             'amount': float(parts[3]),
             'timestamp': datetime.now().isoformat()
         }
-
-        # Создаём очередь через HTTP API (если нет)
-        # Она создастся автоматически при первой отправке
         
         if send_to_rabbitmq(message):
             return jsonify({'status': 'success', 'message': 'Sent via HTTP API'}), 200
         else:
-            # Резерв — сохраняем в файл
-            with open('/home/AlexRozmarin27/expenses_backup.txt', 'a') as f:
+            # Резерв — сохраняем в файл (путь для Timeweb)
+            with open('/app/expenses_backup.txt', 'a') as f:
                 f.write(payload + '\n')
             return jsonify({'status': 'success', 'message': 'Saved to file (backup)'}), 200
 
@@ -76,7 +74,17 @@ def add_expense():
 def health():
     return 'OK'
 
+@app.route('/expenses', methods=['GET'])
+def get_expenses():
+    """Просмотр сохранённых трат"""
+    try:
+        with open('/app/expenses_backup.txt', 'r') as f:
+            return f.read(), 200, {'Content-Type': 'text/plain'}
+    except:
+        return 'No expenses yet', 404
+
+# Для gunicorn
 application = app
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=8000)
