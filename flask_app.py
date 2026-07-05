@@ -74,5 +74,8 @@ def get_expenses():
     except:
         return 'No expenses yet', 404
 
+# Для gunicorn — ЭТО ОБЯЗАТЕЛЬНО!
+application = app
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000)
