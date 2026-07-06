@@ -11,30 +11,19 @@ RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD', '10vJ9kVWgSsee7029maNq8x
 RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'lizard.lmq.cloudamqp.com')
 RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', 'owrqpdlu')
 
-def send_to_rabbitmq(message):
-    try:
-        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/amq.default/publish'
-        
-        payload = {
-            'properties': {},
-            'routing_key': 'expenses_events',
-            'payload': json.dumps(message, ensure_ascii=False),
-            'payload_encoding': 'string'
-        }
-        
-        response = requests.post(
-            url,
-            auth=(RABBITMQ_USER, RABBITMQ_PASSWORD),
-            json=payload,
-            headers={'Content-Type': 'application/json'}
-        )
-        
-        return response.status_code == 200
-    except Exception as e:
-        print(f"RabbitMQ ошибка: {e}")
-        return False
+@app.route('/health', methods=['GET'])
+def health():
+    return 'OK'
 
-@app.route('/api/expenses', methods=['POST'])
+@app.route('/api/expenses/list', methods=['GET'])
+def get_expenses():
+    try:
+        with open('/app/expenses_backup.txt', 'r') as f:
+            return f.read(), 200, {'Content-Type': 'text/plain'}
+    except:
+        return 'No expenses yet', 404
+
+@app.route('/api/expenses/save', methods=['POST'])
 def add_expense():
     try:
         payload = request.data.decode('utf-8').strip()
@@ -62,17 +51,28 @@ def add_expense():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/health', methods=['GET'])
-def health():
-    return 'OK'
-
-@app.route('/expenses', methods=['GET'])
-def get_expenses():
+def send_to_rabbitmq(message):
     try:
-        with open('/app/expenses_backup.txt', 'r') as f:
-            return f.read(), 200, {'Content-Type': 'text/plain'}
-    except:
-        return 'No expenses yet', 404
+        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/amq.default/publish'
+        
+        payload = {
+            'properties': {},
+            'routing_key': 'expenses_events',
+            'payload': json.dumps(message, ensure_ascii=False),
+            'payload_encoding': 'string'
+        }
+        
+        response = requests.post(
+            url,
+            auth=(RABBITMQ_USER, RABBITMQ_PASSWORD),
+            json=payload,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        return response.status_code == 200
+    except Exception as e:
+        print(f"RabbitMQ ошибка: {e}")
+        return False
 
 # Для gunicorn — ЭТО ОБЯЗАТЕЛЬНО!
 application = app
