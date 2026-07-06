@@ -13,11 +13,11 @@ RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', 'owrqpdlu')
 
 def send_to_rabbitmq(message):
     try:
-        url = f'https://{RABBITMQ_HOST}/api/queues/{RABBITMQ_VHOST}/expenses_queue/publish'
+        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/amq.default/publish'
         
         payload = {
             'properties': {},
-            'routing_key': 'expenses_queue',
+            'routing_key': 'expenses_events',
             'payload': json.dumps(message, ensure_ascii=False),
             'payload_encoding': 'string'
         }
