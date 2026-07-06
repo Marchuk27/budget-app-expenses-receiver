@@ -26,18 +26,21 @@ def get_expenses():
 @app.route('/api/expenses/save', methods=['POST'])
 def add_expense():
     try:
-        payload = request.data.decode('utf-8').strip()
-        print(f"Получено: {payload}")
-
-        parts = payload.split(':')
-        if len(parts) != 4:
-            return jsonify({'error': 'Invalid format'}), 400
-
+        # Получаем JSON из тела запроса
+        data = request.get_json()
+        
+        # Проверяем обязательные поля
+        required_fields = ['date', 'sum', 'category', 'subcategory']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing field: {field}'}), 400
+        
+        # Формируем сообщение для RabbitMQ
         message = {
-            'date': parts[0],
-            'category': parts[1],
-            'subcategory': parts[2],
-            'amount': float(parts[3]),
+            'date': data['date'],
+            'sum': float(data['sum']),
+            'category': data['category'],
+            'subcategory': data['subcategory'],
             'timestamp': datetime.now().isoformat()
         }
         
