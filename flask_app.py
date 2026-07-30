@@ -3,6 +3,8 @@ from datetime import datetime
 import requests
 import json
 import os
+import logging
+from logging import FileHandler
 
 app = Flask(__name__)
 
