@@ -11,6 +11,12 @@ RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD', '10vJ9kVWgSsee7029maNq8x
 RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'lizard.lmq.cloudamqp.com')
 RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', 'owrqpdlu')
 
+# Настройка записи логов в файл
+file_handler = FileHandler('app.log')
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+app.logger.addHandler(file_handler)
+app.logger.setLevel(logging.INFO)
+
 @app.route('/health', methods=['GET'])
 def health():
     return 'OK'
@@ -76,7 +82,7 @@ def send_to_rabbitmq(message):
         
         return response.status_code == 200
     except Exception as e:
-        print(f"RabbitMQ ошибка: {e}")
+        app.logger.error(f"RabbitMQ ошибка: {e}")  #пишем в файл app.log
         return False
 
 # Для gunicorn — ЭТО ОБЯЗАТЕЛЬНО!
