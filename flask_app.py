@@ -17,12 +17,6 @@ RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', 'owrqpdlu')
 file_handler = FileHandler('app.log')
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 app.logger.addHandler(file_handler)
-
-# Этот handler отправляет логи в stdout, их увидит платформа
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-app.logger.addHandler(console_handler)
-
 app.logger.setLevel(logging.INFO)
 
 @app.route('/health', methods=['GET'])
