@@ -8,6 +8,7 @@ from logging import FileHandler
 
 app = Flask(__name__)
 
+RABBIT_BUDGET_TOPIC = 'budget_events_topic_exchange'
 RABBITMQ_USER = os.environ.get('RABBITMQ_USER', 'owrqpdlu')
 RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD', '10vJ9kVWgSsee7029maNq8xNSeQUN47F')
 RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'lizard.lmq.cloudamqp.com')
@@ -70,11 +71,13 @@ def add_expense():
 
 def send_to_rabbitmq(message):
     try:
-        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/amq.default/publish'
+        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/{RABBIT_BUDGET_TOPIC}/publish'
+        user_uid = message.get('userUid')
         
+        # 3. 
         payload = {
             'properties': {},
-            'routing_key': 'expenses_events',
+            'routing_key': f'user.{user_uid}',  # Меняем routing_key на  динамический ключ user.{UID}
             'payload': json.dumps(message, ensure_ascii=False),
             'payload_encoding': 'string'
         }
@@ -88,7 +91,7 @@ def send_to_rabbitmq(message):
         
         return response.status_code == 200
     except Exception as e:
-        app.logger.error(f"RabbitMQ ошибка: {e}")  #пишем в файл app.log
+        app.logger.error(f"RabbitMQ ошибка: {e}")
         return False
 
 # Для gunicorn — ЭТО ОБЯЗАТЕЛЬНО!
