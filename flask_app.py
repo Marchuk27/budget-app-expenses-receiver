@@ -30,7 +30,7 @@ def add_expense():
         data = request.get_json()
         
         # Проверяем обязательные поля
-        required_fields = ['date', 'sum', 'category', 'subcategory']
+        required_fields = ['date', 'userUid', 'sum', 'category', 'subcategory']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing field: {field}'}), 400
@@ -38,6 +38,8 @@ def add_expense():
         # Формируем сообщение для RabbitMQ
         message = {
             'date': data['date'],
+            'userUid': data['userUid'],
+            'userName': data['userName'],
             'sum': float(data['sum']),
             'category': data['category'],
             'subcategory': data['subcategory'],
