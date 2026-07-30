@@ -13,10 +13,16 @@ RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD', '10vJ9kVWgSsee7029maNq8x
 RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'lizard.lmq.cloudamqp.com')
 RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', 'owrqpdlu')
 
-# Настройка записи логов в файл
+# Настройка логов: в файл И в консоль (stdout)
 file_handler = FileHandler('app.log')
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 app.logger.addHandler(file_handler)
+
+# Этот handler отправляет логи в stdout, их увидит платформа
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+app.logger.addHandler(console_handler)
+
 app.logger.setLevel(logging.INFO)
 
 @app.route('/health', methods=['GET'])
@@ -36,18 +42,20 @@ def add_expense():
     try:
         # Получаем JSON из тела запроса
         data = request.get_json()
+        app.logger.info(f"📥 Получен запрос с данными: {data}")
         
         # Проверяем обязательные поля
         required_fields = ['date', 'userUid', 'sum', 'category', 'subcategory']
         for field in required_fields:
             if field not in data:
+                app.logger.warning(f"Отсутствует обязательное поле: {field}")
                 return jsonify({'error': f'Missing field: {field}'}), 400
         
         # Формируем сообщение для RabbitMQ
         message = {
             'date': data['date'],
             'userUid': data['userUid'],
-            'userName': data['userName'],
+            'userName': data.get('userName', ''),
             'sum': float(data['sum']),
             'category': data['category'],
             'subcategory': data['subcategory'],
@@ -55,8 +63,10 @@ def add_expense():
         }
         
         if send_to_rabbitmq(message):
+            app.logger.info("✅ Сообщение успешно отправлено в RabbitMQ")
             return jsonify({'status': 'success', 'message': 'Sent via HTTP API'}), 200
         else:
+            app.logger.error(f"❌ Критическая ошибка в обработчике: {e}", exc_info=True)
             with open('/app/expenses_backup.txt', 'a') as f:
                 f.write(payload + '\n')
             return jsonify({'status': 'success', 'message': 'Saved to file (backup)'}), 200
