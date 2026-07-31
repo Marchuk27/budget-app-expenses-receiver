@@ -71,8 +71,8 @@ def add_expense():
 def send_to_rabbitmq(message):
     try:
         user_uid = message.get('userUid')
-        queue_name = f"buget_events_{user_uid}"  #имя очереди формируется на основе userUid (н.п. buget_events_123)
-        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/{RABBIT_BUDGET_TOPIC}/publish' #пишем в очередь
+        queue_name = f"budget_events_{user_uid}"  #имя очереди формируется на основе userUid (н.п. buget_events_123)
+        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/amq.default/publish' #пишем в очередь
         
         # 3. 
         payload = {
