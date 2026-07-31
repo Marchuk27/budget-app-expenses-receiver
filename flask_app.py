@@ -8,7 +8,6 @@ from logging import FileHandler
 
 app = Flask(__name__)
 
-RABBIT_BUDGET_TOPIC = 'budget_events_topic_exchange'
 RABBITMQ_USER = os.environ.get('RABBITMQ_USER', 'owrqpdlu')
 RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD', '10vJ9kVWgSsee7029maNq8xNSeQUN47F')
 RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'lizard.lmq.cloudamqp.com')
@@ -71,13 +70,14 @@ def add_expense():
 
 def send_to_rabbitmq(message):
     try:
-        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/{RABBIT_BUDGET_TOPIC}/publish'
         user_uid = message.get('userUid')
+        queue_name = f"buget_events_{user_uid}"  #имя очереди формируется на основе userUid (н.п. buget_events_123)
+        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/{RABBIT_BUDGET_TOPIC}/publish' #пишем в очередь
         
         # 3. 
         payload = {
             'properties': {},
-            'routing_key': f'user.{user_uid}',  # Меняем routing_key на  динамический ключ user.{UID}
+            'routing_key': queue_name,
             'payload': json.dumps(message, ensure_ascii=False),
             'payload_encoding': 'string'
         }
