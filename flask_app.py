@@ -86,7 +86,8 @@ def send_to_rabbitmq(message):
             url,
             auth=(RABBITMQ_USER, RABBITMQ_PASSWORD),
             json=payload,
-            headers={'Content-Type': 'application/json'}
+            headers={'Content-Type': 'application/json'},
+            timeout=(5, 10)
         )
         
         return response.status_code == 200
