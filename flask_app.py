@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
-import pika
+import requests
 import json
 import os
 import logging
