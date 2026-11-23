@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from datetime import datetime
-import requests
+import pika
 import json
 import os
 import logging
@@ -19,33 +19,36 @@ file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(mes
 app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
 
+
 @app.route('/health', methods=['GET'])
 def health():
     return 'OK'
 
+
 @app.route('/api/expenses/list', methods=['GET'])
 def get_expenses():
     try:
-        with open('/app/expenses_backup.txt', 'r') as f:
-            return f.read(), 200, {'Content-Type': 'text/plain'}
-    except:
+        with open('/app/expenses_backup.txt', 'r', encoding='utf-8') as f:
+            return f.read(), 200, {'Content-Type': 'text/plain; charset=utf-8'}
+    except FileNotFoundError:
         return 'No expenses yet', 404
+
 
 @app.route('/api/expenses/save', methods=['POST'])
 def add_expense():
     try:
-        # Получаем JSON из тела запроса
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid or empty JSON'}), 400
+            
         app.logger.info(f"📥 Получен запрос с данными: {data}")
         
-        # Проверяем обязательные поля
         required_fields = ['date', 'userUid', 'sum', 'category', 'subcategory']
         for field in required_fields:
             if field not in data:
                 app.logger.warning(f"Отсутствует обязательное поле: {field}")
                 return jsonify({'error': f'Missing field: {field}'}), 400
         
-        # Формируем сообщение для RabbitMQ
         message = {
             'date': data['date'],
             'userUid': data['userUid'],
@@ -58,42 +61,46 @@ def add_expense():
         
         if send_to_rabbitmq(message):
             app.logger.info("✅ Сообщение успешно отправлено в RabbitMQ")
-            return jsonify({'status': 'success', 'message': 'Sent via HTTP API'}), 200
+            return jsonify({'status': 'success', 'message': 'Sent via AMQP'}), 200
         else:
-            app.logger.error(f"❌ Критическая ошибка в обработчике: {e}", exc_info=True)
-            with open('/app/expenses_backup.txt', 'a') as f:
+            app.logger.warning("⚠️ Не удалось отправить в RabbitMQ, сохраняем в резервный файл")
+            payload = json.dumps(message, ensure_ascii=False)
+            with open('/app/expenses_backup.txt', 'a', encoding='utf-8') as f:
                 f.write(payload + '\n')
             return jsonify({'status': 'success', 'message': 'Saved to file (backup)'}), 200
 
     except Exception as e:
+        app.logger.error(f"❌ Критическая ошибка в обработчике: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
-def send_to_rabbitmq(message):
+def send_to_rabbitmq(message: dict) -> bool:
+    connection = None
     try:
         user_uid = message.get('userUid')
-        queue_name = f"budget_events_{user_uid}"  #имя очереди формируется на основе userUid (н.п. buget_events_123)
-        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/amq.default/publish' #пишем в очередь
+        queue_name = f"budget_events_{user_uid}"
         
-        # 3. 
-        payload = {
-            'properties': {},
-            'routing_key': queue_name,
-            'payload': json.dumps(message, ensure_ascii=False),
-            'payload_encoding': 'string'
-        }
+        amqp_url = f"amqps://{RABBITMQ_USER}:{RABBITMQ_PASSWORD}@{RABBITMQ_HOST}/{RABBITMQ_VHOST}"
+        params = pika.URLParameters(amqp_url)
+        params.socket_timeout = 10
+        params.blocked_connection_timeout = 10
         
-        response = requests.post(
-            url,
-            auth=(RABBITMQ_USER, RABBITMQ_PASSWORD),
-            json=payload,
-            headers={'Content-Type': 'application/json'},
-            timeout=(5, 10)
+        connection = pika.BlockingConnection(params)
+        channel = connection.channel()
+        channel.queue_declare(queue=queue_name, durable=True)
+        
+        channel.basic_publish(
+            exchange='',
+            routing_key=queue_name,
+            body=json.dumps(message, ensure_ascii=False),
+            properties=pika.BasicProperties(delivery_mode=2)
         )
-        
-        return response.status_code == 200
+        return True
     except Exception as e:
-        app.logger.error(f"RabbitMQ ошибка: {e}")
+        app.logger.error(f"❌ RabbitMQ AMQP ошибка: {e}", exc_info=True)
         return False
+    finally:
+        if connection and not connection.is_closed:
+            connection.close()
 
 # Для gunicorn — ЭТО ОБЯЗАТЕЛЬНО!
 application = app
