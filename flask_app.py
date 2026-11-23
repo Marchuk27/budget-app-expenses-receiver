@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 RABBITMQ_USER = os.environ.get('RABBITMQ_USER', 'owrqpdlu')
 RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD', '10vJ9kVWgSsee7029maNq8xNSeQUN47F')
-RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'lizard.lmq.cloudamqp.com')
+RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'rabbit-delegate.sashamarchuk-27.workers.dev') # Cloudflare worker delegate url
 RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', 'owrqpdlu')
 
 # Настройка логов: в файл И в консоль (stdout)
@@ -74,33 +74,39 @@ def add_expense():
         return jsonify({'error': str(e)}), 500
 
 def send_to_rabbitmq(message: dict) -> bool:
-    connection = None
     try:
         user_uid = message.get('userUid')
         queue_name = f"budget_events_{user_uid}"
+        url = f'https://{RABBITMQ_HOST}/api/exchanges/{RABBITMQ_VHOST}/amq.default/publish'
         
-        amqp_url = f"amqps://{RABBITMQ_USER}:{RABBITMQ_PASSWORD}@{RABBITMQ_HOST}/{RABBITMQ_VHOST}"
-        params = pika.URLParameters(amqp_url)
-        params.socket_timeout = 10
-        params.blocked_connection_timeout = 10
+        payload = {
+            'properties': {'delivery_mode': 2},
+            'routing_key': queue_name,
+            'payload': json.dumps(message, ensure_ascii=False),
+            'payload_encoding': 'string'
+        }
         
-        connection = pika.BlockingConnection(params)
-        channel = connection.channel()
-        channel.queue_declare(queue=queue_name, durable=True)
-        
-        channel.basic_publish(
-            exchange='',
-            routing_key=queue_name,
-            body=json.dumps(message, ensure_ascii=False),
-            properties=pika.BasicProperties(delivery_mode=2)
+        response = requests.post(
+            url,
+            auth=(RABBITMQ_USER, RABBITMQ_PASSWORD),
+            json=payload,
+            headers={'Content-Type': 'application/json'},
+            timeout=(5, 10)
         )
-        return True
+        
+        if response.status_code == 200:
+            res_json = response.json()
+            if not res_json.get('routed'):
+                app.logger.warning(f"⚠️ RabbitMQ принял запрос, но не смаршрутизировал (очередь {queue_name} не создана?)")
+                return False
+            return True
+        else:
+            app.logger.error(f"❌ RabbitMQ HTTP {response.status_code}: {response.text}")
+            return False
+
     except Exception as e:
-        app.logger.error(f"❌ RabbitMQ AMQP ошибка: {e}", exc_info=True)
+        app.logger.error(f"❌ RabbitMQ ошибка: {e}")
         return False
-    finally:
-        if connection and not connection.is_closed:
-            connection.close()
 
 # Для gunicorn — ЭТО ОБЯЗАТЕЛЬНО!
 application = app
