@@ -13,12 +13,10 @@ RABBITMQ_PASSWORD = os.environ.get('RABBITMQ_PASSWORD', '10vJ9kVWgSsee7029maNq8x
 RABBITMQ_HOST = os.environ.get('RABBITMQ_HOST', 'rabbit-delegate.sashamarchuk-27.workers.dev') # Cloudflare worker delegate url
 RABBITMQ_VHOST = os.environ.get('RABBITMQ_VHOST', 'owrqpdlu')
 
-# Настройка логов: в файл И в консоль (stdout)
-file_handler = FileHandler('app.log')
+file_handler = FileHandler('app.log') # Настройка логов: в файл И в консоль (stdout)
 file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
 app.logger.addHandler(file_handler)
 app.logger.setLevel(logging.INFO)
-
 
 @app.route('/health', methods=['GET'])
 def health():
